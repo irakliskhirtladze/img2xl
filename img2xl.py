@@ -10,11 +10,11 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        # Set up the user interface from Designer.
+        # Set up the user interface from Designer
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)    
         
-        # Links pushbuttons with corresponding functions
+        # Link pushbuttons with corresponding functions
         self.ui.pushButton.clicked.connect(self.getfolder)
         self.ui.pushButton_2.clicked.connect(self.write_excel)
 
@@ -23,11 +23,9 @@ class App(QMainWindow):
         This method is linked with pushbutton"""
         self.path = QFileDialog.getExistingDirectory()
         
-        if self.path:
-            # Update the label if the directory is chosen
+        if self.path: # Update the label if the directory is chosen
             self.ui.label.setText(f"Selected Directory: {self.path}")
-        else:
-            # If no directory was selected do nothing
+        else: # If no directory was selected do nothing
             pass      
 
     def extract_gps_data(self):
@@ -35,9 +33,9 @@ class App(QMainWindow):
 
         target_folder = pathlib.Path(self.path)
 
-        geodata_rows = [] # A list which will be filled with Excel rows
-        self.files_list=list(target_folder.iterdir()) # Get a list of files present in selected folder
-        self.counter = 0 # This counts how many files were processed successfully
+        geodata_rows = [] # A list of Excel rows
+        self.files_list=list(target_folder.iterdir()) # List of files in selected folder
+        self.counter = 0 # Counts how many files were processed successfully
 
         for file in self.files_list:
             if file.suffix.lower() in ('.jpg', '.jpeg', '.png', '.tiff'):
@@ -66,7 +64,7 @@ class App(QMainWindow):
                     altlist = alt.split('/')
                     altitude = int(altlist[0])/int(altlist[1])
                     
-                    # Lat/Long to X/Y conversion
+                    # Lat/Long to metric conversion
                     pp = pyproj.Proj(proj='utm', zone=38, ellps='WGS84', preserve_units=False)
                     X, Y = pp(declon, declat)
 
@@ -76,7 +74,7 @@ class App(QMainWindow):
 
                     self.counter += 1
 
-                except: # Move on to the next file if it fails
+                except:
                     continue   
 
         return geodata_rows
@@ -92,14 +90,14 @@ class App(QMainWindow):
             wb = xl.Workbook()
             sheet = wb.active
 
-            # Iterate over rows list and insert them into the Excel sheet
+            # Iterate over rows list and insert them in Excel
             for row in self.extract_gps_data():
                 sheet.append(row)
             try:
                 wb.save(self.path + '/Image_coordinates.xlsx')
                 QMessageBox.information(None, 'Success!', f'{self.counter} out of {len(self.files_list)} files were processed')
             except PermissionError:
-                QMessageBox.critical(None, 'Open File', 'Please close excel file and try again')
+                QMessageBox.critical(None, 'File is open', 'Please close excel file and try again')
         else:
             QMessageBox.critical(None,'No GPS Data Found', 'Folder contains no images or images have no cooridnates')
 

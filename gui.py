@@ -83,7 +83,6 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowIcon(QtGui.QIcon('uav.ico'))
         self.pushButton.setText(_translate("MainWindow", "Select folder with images"))
         self.pushButton_2.setText(_translate("MainWindow", "Run"))
         self.label.setText(_translate("MainWindow", "Selected path will appear here"))
