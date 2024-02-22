@@ -6,7 +6,7 @@ import exifread
 import pathlib
 import pyproj
 
-class MainWindow(QMainWindow):
+class App(QMainWindow):
     def __init__(self):
         super().__init__()
 
@@ -105,6 +105,6 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    mainWindow = MainWindow()
+    mainWindow = App()
     mainWindow.show()
     sys.exit(app.exec_())
