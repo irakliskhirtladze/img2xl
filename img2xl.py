@@ -12,7 +12,9 @@ class App(QMainWindow):
 
         # Set up the user interface from Designer
         self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)    
+        self.ui.setupUi(self)   
+
+        self.path = "Empty path" # Initializing path as any string
         
         # Link pushbuttons with corresponding functions
         self.ui.pushButton.clicked.connect(self.getfolder)
@@ -21,9 +23,10 @@ class App(QMainWindow):
     def getfolder(self):
         """Opens a file dialog to choose a directory. 
         This method is linked with pushbutton"""
-        self.path = QFileDialog.getExistingDirectory()
+        path = QFileDialog.getExistingDirectory()
         
-        if self.path: # Update the label if the directory is chosen
+        if path: # Update the label if the directory is chosen
+            self.path = path
             self.ui.label.setText(f"Selected Directory: {self.path}")
         else: # If no directory was selected do nothing
             pass      
