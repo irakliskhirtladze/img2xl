@@ -1,111 +1,124 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QMessageBox
-from gui import Ui_MainWindow
+from PyQt5.uic import loadUi
+from PyQt5.QtGui import QIcon
+import time
 import openpyxl as xl
 import exifread
 import pathlib
 import pyproj
 
-class App(QMainWindow):
+
+def decimal_coord(coordinate):
+    """Processes single coordinate (latitude or longitude) into decimal degrees format"""
+    coord_list = coordinate.lstrip('[').rstrip(']').split(', ')
+    coord_deg = int(coord_list[0])
+    coord_min = int(coord_list[1])
+    coord_sec = int(coord_list[2].split('/')[0]) / int(coord_list[2].split('/')[1])
+    dec_coord = (coord_sec / 60 + coord_min) / 60 + coord_deg
+
+    return dec_coord
+
+
+def data_extractor(file):
+    """Extracts data from a single file"""
+    if file.suffix.lower() in ('.jpg', '.jpeg', '.png', '.tiff'):
+        try:
+            tags = exifread.process_file(open(file, 'rb'))
+            geo = {i: tags[i] for i in tags.keys() if i.startswith('GPS')}
+
+            lat = str(geo['GPS GPSLatitude'])
+            lon = str(geo['GPS GPSLongitude'])
+            dec_lat, dec_lon = decimal_coord(lat), decimal_coord(lon)
+
+            # Extract altitude from an image
+            alt = str(geo['GPS GPSAltitude'])
+            alt_list = alt.split('/')
+            altitude = int(alt_list[0]) / int(alt_list[1])
+
+            # Lat/Long to metric conversion
+            pp = pyproj.Proj(proj='utm', zone=38, ellps='WGS84', preserve_units=False)
+            x, y = pp(dec_lon, dec_lat)
+
+            # Return a tuple representing each Excel row
+            return file.stem, x, y, altitude
+        except:  # No need to catch any specific error
+            return None
+    else:
+        return None
+
+
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
         # Set up the user interface from Designer
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)   
+        self.ui = loadUi("ui/gui.ui", self)
 
-        self.path = "Empty path" # Initializing path as any string
-        
-        # Link pushbuttons with corresponding functions
-        self.ui.pushButton.clicked.connect(self.getfolder)
+        # Initializing path as any string
+        self.path = "Empty path"
+
+        # Link pushButtons with corresponding functions
+        self.ui.pushButton.clicked.connect(self.get_folder)
         self.ui.pushButton_2.clicked.connect(self.write_excel)
 
-    def getfolder(self):
+    def get_folder(self):
         """Opens a file dialog to choose a directory. 
         This method is linked with pushbutton"""
         path = QFileDialog.getExistingDirectory()
-        
-        if path: # Update the label if the directory is chosen
+
+        if path:  # Update the label and initial variable if the directory is chosen
             self.path = path
             self.ui.label.setText(f"Selected Directory: {self.path}")
-        else: # If no directory was selected do nothing
-            pass      
+        else:  # If no directory was selected do nothing
+            pass
 
     def extract_gps_data(self):
         """Extracts GPS data from images"""
 
         target_folder = pathlib.Path(self.path)
 
-        geodata_rows = [] # A list of Excel rows
-        self.files_list=list(target_folder.iterdir()) # List of files in selected folder
-        self.counter = 0 # Counts how many files were processed successfully
+        geodata_rows = []  # A list of Excel rows
+        files_list = list(target_folder.iterdir())  # List of files in selected folder
 
-        for file in self.files_list:
-            if file.suffix.lower() in ('.jpg', '.jpeg', '.png', '.tiff'):
-                try: # Try to process all image files
-                    tags = exifread.process_file(open(file, 'rb'))
-                    geo={i:tags[i] for i in tags.keys() if i.startswith('GPS')}
-                  
-                    # Get degree, minute, second for latitude and convert them to decimal degrees
-                    lat = str(geo['GPS GPSLatitude'])
-                    latlist = lat.lstrip('[').rstrip(']').split(', ')
-                    latdeg = int(latlist[0])
-                    latmin = int(latlist[1])
-                    latsec = int(latlist[2].split('/')[0])/int(latlist[2].split('/')[1])
-                    declat=(latsec/60+latmin)/60+latdeg
-                    
-                    # Get degree, minute, second for longitude and convert them to decimal degrees
-                    lon = str(geo['GPS GPSLongitude'])
-                    lonlist = lon.lstrip('[').rstrip(']').split(', ')
-                    londeg = int(lonlist[0])
-                    lonmin = int(lonlist[1])
-                    lonsec = int(lonlist[2].split('/')[0])/int(lonlist[2].split('/')[1])
-                    declon = (lonsec/60+lonmin)/60+londeg
-                    
-                    # Extract altitude from an image
-                    alt = str(geo['GPS GPSAltitude'])
-                    altlist = alt.split('/')
-                    altitude = int(altlist[0])/int(altlist[1])
-                    
-                    # Lat/Long to metric conversion
-                    pp = pyproj.Proj(proj='utm', zone=38, ellps='WGS84', preserve_units=False)
-                    X, Y = pp(declon, declat)
-
-                    # Make a tuple representing each Excel row and add to list
-                    row = (file.stem, X, Y, altitude)
-                    geodata_rows.append(row)
-
-                    self.counter += 1
-
-                except:
-                    continue   
+        for file in files_list:
+            row = data_extractor(file)
+            if row:
+                geodata_rows.append(row)
 
         return geodata_rows
-    
+
     def write_excel(self):
         """Calls extract_gps_data() method, then writes extracted data to Excel.
         This method is linked with pushbutton_2"""
 
         if not pathlib.Path(self.path).is_dir():
             QMessageBox.warning(None, 'No folder selected', 'Select a folder first and try again')
-        elif len(self.extract_gps_data())>0:
+        elif len(self.extract_gps_data()) > 0:
             # Initialize Excel workbook and sheet
             wb = xl.Workbook()
             sheet = wb.active
 
             # Iterate over rows list and insert them in Excel
+            start_time = time.perf_counter()
             for row in self.extract_gps_data():
                 sheet.append(row)
+            end_time = time.perf_counter()
             try:
-                wb.save(self.path + '/Image_coordinates.xlsx')
-                QMessageBox.information(None, 'Success!', f'{self.counter} out of {len(self.files_list)} files were processed')
+                wb.save('output/Image_coordinates.xlsx')
+                self.ui.label_2.setStyleSheet("background-color:transparent; color:rgb(0, 170, 127)")
+                self.ui.label_2.setText("Success")
+                self.ui.label_3.setStyleSheet("background-color:transparent")
+                self.ui.label_3.setText(f"Finished in {round(end_time - start_time, 2)}")
             except PermissionError:
                 QMessageBox.critical(None, 'File is open', 'Please close excel file and try again')
         else:
-            QMessageBox.critical(None,'No GPS Data Found', 'Folder contains no images or images have no cooridnates')
+            QMessageBox.critical(None, 'No GPS Data Found', 'Folder contains no images or images have no coordinates')
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    mainWindow = App()
-    mainWindow.show()
+    window = MainWindow()
+    window.setWindowTitle("IMG2XL")
+    window.setWindowIcon(QIcon("assets/uav.ico"))
+    window.show()
     sys.exit(app.exec_())
